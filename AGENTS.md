@@ -1,19 +1,19 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-Organize runtime code under `src/agents/<agent_name>` with shared utilities in `src/common/`. Narrative assets such as prompt templates and YAML story beats belong in `assets/`, while diagrams live in `docs/`. Tests mirror modules in `tests/agents/` (e.g., `tests/agents/test_storyteller.py`) and fixtures in `tests/fixtures/`.
+Runtime code lives in `src/agents/visibility/` with shared helpers (config, text, types) under `src/common/`. Prompts and templates are tracked in `assets/visibility/`, while specs and samples sit inside `docs/`. Tests mirror runtime paths under `tests/agents/visibility/`, and text fixtures reside in `tests/fixtures/`. Utility scripts (formatting, QA) belong in `scripts/`.
 
 ## Build, Test, and Development Commands
-Use `poetry install` to resolve dependencies and `poetry shell` for a locked virtualenv. Run the CLI locally via `poetry run python -m src.cli --story stories/example.yaml`. Quality gates: `poetry run ruff check src tests`, `poetry run black src tests`, and `poetry run pytest -q` for suites.
+Use the built-in Python toolchain (3.11+)—no external services needed. Run `python3 -m pytest` or `scripts/run_checks.sh` for the default quality gate (unit + integration tests and bytecode compilation). Execute the visibility workflow via `python3 -m src.cli --provider-name OpenAI --source-url https://… tests/fixtures/bluej_raw.txt` to generate a JSON report under `artifacts/`.
 
 ## Coding Style & Naming Conventions
-Target Python 3.11, four-space indentation, and exhaustive type hints. Name modules in snake_case (`story_branching.py`), classes in PascalCase, constants uppercase. Keep public functions documented with short docstrings explaining branching logic; prefer pure helpers under 40 lines.
+Follow Black-style formatting with a 100-character line length and four-space indentation. Modules and variables use `snake_case`, classes use `PascalCase`, constants are `UPPER_SNAKE`. Add docstrings or inline comments only when logic is non-obvious (e.g., heuristics in pillar extraction). Prefer pure, side-effect-light functions to keep unit tests focused.
 
 ## Testing Guidelines
-Pytest powers validation; co-locate tests with their subject using `test_<module>.py`. Exercise every narrative branch with parametrized tests and stash reusable prompts under `tests/fixtures/`. Maintain ≥85% branch coverage and record golden transcripts in `tests/data/`.
+Tests live alongside their modules and rely on a lightweight pytest shim (`python3 -m pytest`). Cover ingestion masking, pillar extraction heuristics, question generation, model stubs, evaluation math, storage serialization, and CLI flow. Provide deterministic fixtures (e.g., `tests/fixtures/bluej_raw.txt`) so results stay reproducible. Aim for ≥85% branch coverage and keep golden JSON outputs in `artifacts/` when debugging.
 
 ## Commit & Pull Request Guidelines
-Adopt Conventional Commits already used in history (`feat: add bedtime branch`, `fix: reset narrator state`). PRs need a concise summary, linked issue, and `pytest` output; attach transcripts or screenshots when narrative flow changes. Request review from another agent maintainer before merge.
+Adopt Conventional Commits: `feat: add evaluator scoring` or `fix: tighten provider audit`. Each PR must include a summary, linked issue, and the output of `scripts/run_checks.sh`. When report aesthetics change, attach the generated JSON result for reviewers. Secure a second maintainer review before merging.
 
 ## Security & Configuration Tips
-Store secrets in `.env` (ignored) and publish safe defaults in `.env.example`. Load configuration through `src/config.py` and sanitize transcripts before committing. Delete stale keys and rotate mock credentials quarterly.
+Never commit live secrets—`.env` is ignored and `.env.example` holds safe defaults. Configuration flows through `src/common/config.py`, while `load_story_document` enforces provider masking before anything leaves ingestion. Check artifacts for accidental provider leaks before uploading and rotate any mock credentials quarterly.

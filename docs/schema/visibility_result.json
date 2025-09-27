@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "VisibilityResult",
+  "type": "object",
+  "required": [
+    "story_id",
+    "pillars",
+    "questions",
+    "scores"
+  ],
+  "properties": {
+    "story_id": {
+      "type": "string",
+      "description": "Unique identifier for the narrative or campaign."
+    },
+    "pillars": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["title", "summary", "evidence"],
+        "properties": {
+          "title": {"type": "string"},
+          "summary": {"type": "string"},
+          "evidence": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Relative order where 1 is the highest priority."
+          }
+        }
+      }
+    },
+    "questions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["prompt", "category"],
+        "properties": {
+          "prompt": {"type": "string"},
+          "category": {"type": "string"},
+          "assumptions": {
+            "type": "array",
+            "items": {"type": "string"}
+          }
+        }
+      }
+    },
+    "scores": {
+      "type": "object",
+      "properties": {
+        "coverage": {"type": "number"},
+        "confidence": {"type": "number"}
+      },
+      "additionalProperties": false
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "generated_at": {"type": "string", "format": "date-time"},
+        "model": {"type": "string"}
+      }
+    }
+  }
+}
