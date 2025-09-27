@@ -1,0 +1,108 @@
+# Story AI Visibility Agents
+
+Generate brand-visibility briefs by masking provider names and comparing how multiple LLMs (GPT-5 primary, GPT-4o comparison) respond. The pipeline ingests a transcript, extracts selling points, asks domain-expert questions, and highlights where models still infer the masked provider.
+
+## Requirements
+
+- Python 3.11+
+- OpenAI API access (for live runs)
+- `python3 -m pip install -r requirements.txt`
+
+## Quick Start
+
+```bash
+python3 -m pip install -r requirements.txt
+cp .env.example .env  # add your OpenAI key for live mode later
+python3 -m pytest     # run stubbed tests
+```
+
+### Project Layout
+
+- `src/` – CLI, GPT service wrapper, evaluator, storage helpers
+- `assets/visibility/` – Prompt templates (system, extract pillars, generate questions)
+- `docs/` – PRD, schema, samples
+- `tests/` – Pytest-style unit tests + fixtures
+- `artifacts/` – Live/stub JSON outputs (git-ignored)
+
+## Running in Stub Mode (Offline)
+
+Stub mode keeps everything deterministic and avoids real API calls.
+
+```bash
+export MODEL_MODE=stub
+python3 -m pytest                      # runs with stubbed GPTs
+python3 -m src.cli tests/fixtures/bluej_raw.txt \
+  --story-id bluej-stub \
+  --client-name "Blue J" \
+  --provider-name OpenAI \
+  --provider-alias OpenAI \
+  --output artifacts/bluej_stub.json
+```
+
+The CLI prints the artifact path and writes a JSON file containing pillars, questions, and synthetic answers from both “models.”
+
+## Running in Live Mode (GPT-5 + GPT-4o)
+
+1. Set up environment variables:
+   ```bash
+   export MODEL_MODE=live
+   export OPENAI_API_KEY=sk-...
+   # optional
+   export MODEL_NAME=gpt-5
+   export MODEL_COMPARISON_MODELS=gpt-4o
+   export MODEL_MAX_OUTPUT_TOKENS=4096
+   export MODEL_MAX_REASONING_TOKENS=4096
+   ```
+2. Run the CLI:
+   ```bash
+   python3 -m src.cli tests/fixtures/bluej_raw.txt \
+     --story-id oscar-live-001 \
+     --client-name "Oscar" \
+     --provider-name OpenAI \
+     --provider-alias OpenAI \
+     --output artifacts/oscar_live.json
+   ```
+3. Inspect the artifact for GPT-5 and GPT-4o answers per question.
+
+### Tips for Live Runs
+
+- **Token budgets**: GPT-5 uses the Responses API. Allocate ≥4096 `MODEL_MAX_OUTPUT_TOKENS` (and matching reasoning tokens if `MODEL_REASONING_EFFORT` is set) to avoid `status=incomplete` truncations.
+- **Call limits**: `MODEL_CALL_BUDGET` (default 20) protects against runaway completions. Increase cautiously for longer transcripts.
+- **Logging**: If GPT-5 hits the cap, the CLI prints `Warning: <model> response incomplete -> {...}` with the reason. Adjust tokens or simplify prompts and rerun.
+- **Timeouts**: CLI may time out at the shell level, but artifacts are still written once OpenAI returns. Check `artifacts/*.json` even if you see a timeout message.
+
+## Testing & QA
+
+- `python3 -m pytest` – unit tests covering masking, extraction heuristics, model runner, evaluator, storage, CLI.
+- `scripts/run_checks.sh` – convenience wrapper (pytest only; extend as needed).
+- Live runs aren’t part of automated tests; use stub mode in CI and run live smoke-tests manually when credentials are available.
+
+## Configuration Reference
+
+Key `.env` variables (see `.env.example`):
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `MODEL_MODE` | `stub` or `live` | `stub` |
+| `MODEL_NAME` | Primary model | `gpt-5` |
+| `MODEL_COMPARISON_MODELS` | Space/comma-separated comparison models | `gpt-4o` |
+| `MODEL_MAX_OUTPUT_TOKENS` | Completion budget | `4096` |
+| `MODEL_MAX_REASONING_TOKENS` | Reasoning budget (GPT-5) | `4096` |
+| `MODEL_CALL_BUDGET` | Max completions per run | `20` |
+| `MODEL_TIMEOUT_SECONDS` | Per-call timeout | `60` |
+| `OPENAI_API_KEY` | Required in live mode | *(empty)* |
+
+See `docs/PRD.md` for deeper design notes and future roadmap (REST API, richer evaluator signals, telemetry).
+
+## Troubleshooting Checklist
+
+- **GPT-5 empty answers** → increase `MODEL_MAX_OUTPUT_TOKENS` / reasoning tokens; check CLI logs for `status=incomplete`.
+- **Provider leaks** → ensure provider aliases are passed to `--provider-alias` (comma-separated) so `load_story_document` masks them.
+- **Call budget exceeded** → raise `MODEL_CALL_BUDGET` if transcript is long, or trim prompts.
+- **Timeouts** → rerun with higher shell timeout or execute outside constrained environments; artifacts usually write even if CLI command times out.
+
+## Roadmap
+
+- REST API + Admin UI once CLI contract stabilises
+- Reliability-signal evaluation (citations, feedback loops)
+- Structured telemetry (latency, token usage, cost estimates)

@@ -12,24 +12,19 @@ The system masks the AI provider’s name and asks carefully framed **domain-exp
 
 ## **2\. Flow**
 
-1. **Input**: A success story blogpost drawn from approved sources (e.g., OpenAI Stories export or partner-submitted briefing). Capture `source_url` for audit.
+1. **Input**: Provide a success-story transcript (fixtures for v0). Analysts pass `story_id`, optional `source_url`, `client_name`, and provider aliases.
 
-2. **Auto-extract selling points**: The system identifies \~3 key pillars. User can edit/approve.
+2. **Mask provider**: `load_story_document` normalizes text and replaces provider aliases with `[MASK]` before prompting.
 
-3. **Generate questions**: For each selling point, create:
+3. **Extract pillars (GPT-5)**: GPT-5 Responses API returns ~3 pillars (JSON); analysts can override. Stub mode falls back to heuristics.
 
-   * One question with the **client’s name masked**.
+4. **Generate questions (GPT-5)**: GPT-5 produces masked-client and industry-general questions per pillar (JSON). Stub mode mirrors schema.
 
-   * One **industry-general question** with no client reference.  
-      → 3 selling points \= 6 questions.
+5. **Run**: CLI calls GPT-5 (primary) and GPT-4o (comparison) with the masked transcript + questions. Defaults rely on env/flags and enforce a call budget (20 by default) plus retry/backoff safeguards.
 
-4. **Mask AI provider**: Replace all occurrences of the AI vendor with `[MASK]`.
+6. **Evaluate**: Log per-model answers, flag provider detections, aggregate per question, and perform a keyword post-check on responses.
 
-5. **Run**: Provide masked excerpt \+ 6 questions to GPT-5 (primary) and GPT-4o (comparison) with one deterministic run per model (12 total completions). Models are configurable via environment.
-
-6. **Evaluate**: Check if either model names the masked AI provider. Aggregate detections per question across models, retain per-model responses in the output, and rerun a keyword scan against answers before scoring.
-
-7. **Output**: Structured JSON with answers \+ visibility summary.
+7. **Output**: Emit JSON artifact with pillars, questions, per-model `responses`, scores, and summary metrics.
 
 ---
 
@@ -42,6 +37,8 @@ The system masks the AI provider’s name and asks carefully framed **domain-exp
 - **Mask integrity**: Automated scan confirms 0 occurrences of the provider string in prompts or answers before scoring.
 
 - **Analyst review load**: < 2 minutes of manual edits per story (pillar tweaks + mask spot-check).
+
+- **Token budget**: Allocate ≥4096 completion tokens (and matching reasoning tokens when enabled) per GPT-5 call to avoid `status=incomplete` truncation.
 
 ---
 
@@ -97,60 +94,42 @@ The system masks the AI provider’s name and asks carefully framed **domain-exp
 
 ## **4\. Output JSON Example**
 
-`{`  
-  `"story_id": "bluej-001",`  
-  `"selling_points": [`  
-    `{`  
-      `"pillar": "Domain expertise",`  
-      `"questions": [`  
-        `{`  
-          `"id": "sp1_q1_masked_client",`  
-          `"answer": "OpenAI",`  
-          `"ai_provider_inferred": true`  
-        `},`  
-        `{`  
-          `"id": "sp1_q2_industry_general",`  
-          `"answer": "Vendors like OpenAI",`  
-          `"ai_provider_inferred": true`  
-        `}`  
-      `]`  
-    `},`  
-    `{`  
-      `"pillar": "Trust through feedback",`  
-      `"questions": [`  
-        `{`  
-          `"id": "sp2_q1_masked_client",`  
-          `"answer": "OpenAI",`  
-          `"ai_provider_inferred": true`  
-        `},`  
-        `{`  
-          `"id": "sp2_q2_industry_general",`  
-          `"answer": "OpenAI because of reliable feedback integration",`  
-          `"ai_provider_inferred": true`  
-        `}`  
-      `]`  
-    `},`  
-    `{`  
-      `"pillar": "Rigorous evaluations",`  
-      `"questions": [`  
-        `{`  
-          `"id": "sp3_q1_masked_client",`  
-          `"answer": "OpenAI",`  
-          `"ai_provider_inferred": true`  
-        `},`  
-        `{`  
-          `"id": "sp3_q2_industry_general",`  
-          `"answer": "OpenAI is known for high benchmark performance",`  
-          `"ai_provider_inferred": true`  
-        `}`  
-      `]`  
-    `}`  
-  `],`  
-  `"summary": {`  
-    `"total_questions": 6,`  
-    `"ai_provider_recognized_in": 6`  
-  `}`  
-`}`
+```json
+{
+  "story_id": "oscar-live-005",
+  "selling_points": [
+    {
+      "pillar": "Finding A Relevant",
+      "summary": "Finding a relevant piece of information in a medical record is like finding a needle in a haystack...",
+      "questions": [
+        {
+          "id": "sp1_q1_masked_client",
+          "prompt": "[MASK] reports that...",
+          "category": "validation",
+          "kind": "masked_client",
+          "responses": [
+            {"model": "gpt-5", "answer": "OpenAI...", "ai_provider_inferred": true},
+            {"model": "gpt-4o", "answer": "Unsure — evidence insufficient...", "ai_provider_inferred": false}
+          ]
+        },
+        {
+          "id": "sp1_q2_industry_general",
+          "prompt": "Across the market, which AI providers...",
+          "category": "discovery",
+          "kind": "industry_general",
+          "responses": [
+            {"model": "gpt-5", "answer": "OpenAI; Google; Microsoft...", "ai_provider_inferred": true},
+            {"model": "gpt-4o", "answer": "AI providers like OpenAI and Google...", "ai_provider_inferred": true}
+          ]
+        }
+      ]
+    }
+  ],
+  "summary": {"total_questions": 6, "ai_provider_recognized_in": 6},
+  "scores": {"coverage": 1.0, "confidence": 0.9},
+  "metadata": {"models_run": ["gpt-5", "gpt-4o"], "generated_at": "2025-09-27T21:43:54Z"}
+}
+```
 
 ---
 
@@ -158,200 +137,43 @@ The system masks the AI provider’s name and asks carefully framed **domain-exp
 
 ## **5.1 Architectural Pattern**
 
-A modular, service-oriented pipeline with four core services:
+This release ships as a CLI-first pipeline:
 
-1. **Ingestion & Masking Service**
+## **5.2 Key Components**
 
-   * Normalizes a success-story blogpost to plain text.
+| Component | Implementation | Notes |
+| --- | --- | --- |
+| CLI Orchestrator | `src/cli.py` | Handles masking, prompt orchestration, artifact write. |
+| GPT-5 Services | `VisibilityLLMService` + Responses API | Extract pillars, generate questions (JSON contract). |
+| ModelRunner | `src/agents/visibility/model_runner.py` | GPT-5 via Responses, GPT-4o via Chat Completions; retry/backoff + call budget. |
+| Evaluator | `src/agents/visibility/evaluator.py` | Aggregates detections, computes coverage/confidence. |
+| Storage | Filesystem (`artifacts/`) | JSON artifact per run; no DB in v0. |
+| Logging | CLI stdout | Warns on incomplete responses, surfaces errors. |
 
-   * Applies **global AI-provider masking** (e.g., “OpenAI” → `[MASK]` across the entire context).
+1. **CLI Orchestrator (`src/cli.py`)** – loads/masks transcripts, orchestrates GPT calls, writes artifacts.
+2. **LLM Services (GPT-5 Responses)** – extract pillars and generate questions in JSON; stub heuristics mimic the contract for tests.
+3. **ModelRunner** – GPT-5 via `responses.create`, GPT-4o via `chat.completions`, with retry/backoff and call-budget safeguards.
+4. **Evaluator & Storage** – keyword-based provider detection, scoring, and filesystem persistence (`artifacts/`).
 
-   * Runs a post-mask audit (case-insensitive keyword + embedding similarity) before prompts leave the service.
+Future iterations may introduce REST APIs, persistent storage, and richer evaluation signals.
 
-   * Supports **ephemeral client masking** for the *masked-client* question variant (only within that question’s prompt context).
+## **5.3 Workflow Summary (CLI Release)**
 
-   * Handles basic PII scrub (optional).
+- Analyst runs `python3 -m src.cli <transcript> --provider-name <name> ...`.
+- CLI loads and masks the transcript via `load_story_document`.
+- GPT-5 Responses API extracts pillars (JSON). Stub heuristics mirror the schema in test mode.
+- GPT-5 Responses API generates questions (JSON).
+- For each configured model (GPT-5 primary + comparison list), ModelRunner calls OpenAI (Responses for GPT-5, Chat Completions for GPT-4o) with retry/backoff and call-budget safeguards.
+- Evaluator aggregates provider detections per question and computes coverage/confidence scores.
+- CLI logs any `status=incomplete` responses (e.g., token-cap hits) so analysts can adjust budgets or prompts.
+- CLI writes `artifacts/<story_id>.json`, containing per-model responses for every question.
 
-2. **Pillar & Question Service (GPT-5)**
+## **5.4 Artifact Structure**
 
-   * Calls GPT-5 to auto-extract 2–4 selling points with brief rationales (stored for user edits).
+See `docs/schema/visibility_result.json`. Each question includes a `responses` array (one entry per model), preserving GPT-5 and comparison outputs.
 
-   * Uses GPT-5 again to generate 2 questions per pillar in domain-expert language:
+## **5.5 Future Extensions**
 
-     * Q1: masked-client variant.
-
-     * Q2: industry-general variant.
-
-   * Ensures prompts avoid “guess the blank” phrasing and anchor to capabilities, reliability, and evaluation posture.
-
-3. **Model Runner Service**
-
-   * Executes **one run per model** (GPT-5 primary, GPT-4o comparison) with:
-
-     * Masked story excerpt (provider masked globally).
-
-     * Six questions (2 per pillar), inserting the ephemeral client mask for the Q1 variants.
-
-   * Applies deterministic sampling, rate-limit aware retries, and supports stub mode for tests.
-
-4. **Evaluation & Reporting Service**
-
-   * Parses answers and flags whether the **AI provider was inferred**.
-
-   * Detects whether answers echo the **story’s reliability signals** tied to each pillar (e.g., “cited answers,” “feedback disagree rate,” “350+ prompt suite”).
-
-   * Emits **structured JSON** \+ optional dashboard view.
-
----
-
-## **5.2 Components & Responsibilities**
-
-| Component | Tech/Interface | Responsibility |
-| ----- | ----- | ----- |
-| **API Gateway** | REST (JSON) | Receives story text; orchestrates the pipeline (idempotent runs). |
-| **Ingestion & Masking** | Worker / Library | Normalization (HTML→text), global AI-provider masking, optional client ephemeral masking helper. |
-| **Pillar Extractor** | LLM call \+ heuristics | Extracts 2–4 concise selling points with short rationales (user-editable). |
-| **Question Generator** | LLM call \+ templates | Produces 2 questions per pillar, conforms to domain-expert tone; validates length/banlist. |
-| **Prompt Assembler** | Library | Builds final prompts per model with system \+ user content, injects ephemeral client mask for Q1s. |
-| **Model Runner** | OpenAI API | Runs GPT-5 (primary) and GPT-4o (comparison) once each with retry/backoff, and records token usage. |
-| **Evaluator** | Library | Keyword + optional LLM judge to detect **AI provider mentions** and **reliability signal echoes** across models. |
-| **Storage** | SQLite / Postgres | Stories, pillars, questions, runs, answers, and summaries. |
-| **Admin UI** (optional) | Web | Edit pillars; preview questions; run tests; view JSON results. |
-| **Observability** | Logs/metrics | Latency, token usage, model outcomes, masking coverage %, error traces, spend estimates. |
-
----
-
-## **5.3 Sequence (Happy Path)**
-
-`sequenceDiagram`  
-  `participant C as Client`  
-  `participant API as API Gateway`  
-  `participant IM as Ingestion & Masking`  
-  `participant PX as Pillar Extractor`  
-  `participant QG as Question Generator`  
-  `participant MR as Model Runner`  
-  `participant EV as Evaluator`  
-  `participant DB as Storage`
-
-  `C->>API: POST /run (story_text)`  
-  `API->>IM: Normalize + mask AI provider globally`  
-  `IM-->>API: masked_story`  
-  `API->>PX: Extract selling points (auto)`  
-  `PX-->>API: pillars[]`  
-  `API->>DB: Save story + pillars (await user edit/confirm)`  
-  `C->>API: PATCH /pillars (optional edits)`  
-  `API->>QG: Generate 2 questions per pillar`  
-  `QG-->>API: questions[]`  
-  `API->>MR: Run GPT-4o (masked_story + questions)`  
-  `MR-->>API: answers_4o`  
-  `API->>MR: Run GPT-5 (masked_story + questions)`  
-  `MR-->>API: answers_5`  
-  `API->>EV: Evaluate (provider_inferred, signals_detected)`  
-  `EV-->>API: evaluation_summary`  
-  `API->>DB: Persist run, answers, summary`  
-  `API-->>C: JSON results`
-
----
-
-## **5.4 Data Model (Relational Sketch)**
-
-**stories**
-
-* `story_id` (pk)
-
-* `source_title`, `source_url` (nullable)
-
-* `raw_text`, `masked_text`
-
-* `ai_provider_masked`: boolean (default true)
-
-* `client_name`: text (if present in story)
-
-* Timestamps
-
-**pillars**
-
-* `pillar_id` (pk), `story_id` (fk)
-
-* `title` (short selling point)
-
-* `rationale` (1–2 sentences)
-
-* `status` (`auto_extracted` | `edited`)
-
-**questions**
-
-* `question_id` (pk), `pillar_id` (fk)
-
-* `kind` (`masked_client` | `industry_general`)
-
-* `text`
-
-* `requires_client_mask`: boolean
-
-**runs**
-
-* `run_id` (pk), `story_id` (fk)
-
-* `models` (array or join table)
-
-* `status` (`completed`/`failed`)
-
-* Timestamps
-
-**answers**
-
-* `answer_id` (pk), `run_id` (fk), `question_id` (fk), `model`
-
-* `raw_answer`
-
-* `ai_provider_inferred`: boolean
-
-* `signals_detected`: jsonb (e.g., `["citations","feedback_rate","prompt_suite"]`)
-
-**summaries**
-
-* `run_id` (pk, fk)
-
-* `total_questions`, `ai_provider_recognized_in` (int)
-
-* `by_pillar`: jsonb (per-pillar counts)
-
----
-
-## **5.5 Core APIs (MVP)**
-
-* **POST `/api/visibility/run`**
-
-  * Body: `{ "story_text": "...", "client_name": "Blue J" }`
-
-  * Behavior: runs full pipeline (auto-extract pillars → question gen → model calls → evaluate).
-
-  * Response: structured JSON (answers \+ summary).
-
-* **POST `/api/visibility/extract-pillars`** (optional, for stepwise UX)
-
-  * Body: `{ "story_text": "..." }`
-
-  * Response: `{ "pillars": [...] }`
-
-* **PATCH `/api/visibility/pillars/:story_id`**
-
-  * Body: edited pillars array (user-approved).
-
-  * Response: saved pillars.
-
-* **POST `/api/visibility/generate-questions`**
-
-  * Body: `{ "story_id": "...", "pillars": [...] }`
-
-  * Response: `{ "questions": [...] }`
-
-* **POST `/api/visibility/run-models`**
-
-  * Body: `{ "story_id": "...", "questions": [...] }`
-
-  * Response: `{ "answers": {...}, "summary": {...} }`
-
-*(You can expose only `/run` for a one-click experience and keep the others internal.)*
-
+- Add REST API/Admin UI + persistent storage when the CLI pipeline stabilises.
+- Extend evaluator to capture reliability signals (citations, feedback loops).
+- Emit structured telemetry (latency, token totals, incomplete-response warnings).
