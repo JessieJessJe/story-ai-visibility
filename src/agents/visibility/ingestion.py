@@ -27,12 +27,6 @@ def load_transcript(path: Path) -> str:
     return normalize_story_text(raw)
 
 
-def redact_transcript(transcript: str, terms: Sequence[str]) -> str:
-    """Mask provided terms with the global mask token."""
-
-    return mask_terms(transcript, terms, token=GLOBAL_MASK_TOKEN)
-
-
 def normalize_story_text(value: str) -> str:
     """Strip lightweight markup and normalize whitespace."""
 
