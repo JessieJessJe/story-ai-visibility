@@ -64,6 +64,39 @@ The CLI prints the artifact path and writes a JSON file containing pillars, ques
    ```
 3. Inspect the artifact for GPT-5 and GPT-4o answers per question.
 
+### Sample Output
+
+Live runs write JSON artifacts under `artifacts/`. Example (`artifacts/oscar_live_v5.json`):
+
+```json
+{
+  "story_id": "oscar-live-005",
+  "selling_points": [
+    {
+      "pillar": "Finding A Relevant",
+      "questions": [
+        {
+          "id": "sp1_q1_masked_client",
+          "responses": [
+            {"model": "gpt-5", "answer": "Answer: OpenAI...", "ai_provider_inferred": true},
+            {"model": "gpt-4o", "answer": "Answer: Unsure...", "ai_provider_inferred": false}
+          ]
+        },
+        {
+          "id": "sp1_q2_industry_general",
+          "responses": [
+            {"model": "gpt-5", "answer": "OpenAI; Google; Microsoft...", "ai_provider_inferred": true},
+            {"model": "gpt-4o", "answer": "AI providers like OpenAI and Google...", "ai_provider_inferred": true}
+          ]
+        }
+      ]
+    }
+  ],
+  "summary": {"total_questions": 6, "ai_provider_recognized_in": 6},
+  "metadata": {"models_run": ["gpt-5", "gpt-4o"], ...}
+}
+```
+
 ### Tips for Live Runs
 
 - **Token budgets**: GPT-5 uses the Responses API. Allocate ≥4096 `MODEL_MAX_OUTPUT_TOKENS` (and matching reasoning tokens if `MODEL_REASONING_EFFORT` is set) to avoid `status=incomplete` truncations.
