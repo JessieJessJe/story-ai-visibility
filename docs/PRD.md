@@ -25,9 +25,9 @@ The system masks the AI provider’s name and asks carefully framed **domain-exp
 
 4. **Mask AI provider**: Replace all occurrences of the AI vendor with `[MASK]`.
 
-5. **Run**: Provide masked excerpt \+ 6 questions to GPT-4o and GPT-5 (one deterministic run per model → 12 total completions). Models are configurable via environment.
+5. **Run**: Provide masked excerpt \+ 6 questions to GPT-5 (primary) and GPT-4o (comparison) with one deterministic run per model (12 total completions). Models are configurable via environment.
 
-6. **Evaluate**: Check if the model names the masked AI provider. Aggregate detections per question across all models and rerun a keyword scan against answers before scoring.
+6. **Evaluate**: Check if either model names the masked AI provider. Aggregate detections per question across models, retain per-model responses in the output, and rerun a keyword scan against answers before scoring.
 
 7. **Output**: Structured JSON with answers \+ visibility summary.
 
@@ -172,27 +172,27 @@ A modular, service-oriented pipeline with four core services:
 
    * Handles basic PII scrub (optional).
 
-2. **Pillar & Question Service**
+2. **Pillar & Question Service (GPT-5)**
 
-   * **Auto-extracts selling points (pillars)** via an LLM prompt (then stores for user review/edit).
+   * Calls GPT-5 to auto-extract 2–4 selling points with brief rationales (stored for user edits).
 
-   * **Generates 2 questions per pillar** in domain-expert language:
+   * Uses GPT-5 again to generate 2 questions per pillar in domain-expert language:
 
      * Q1: masked-client variant.
 
      * Q2: industry-general variant.
 
-   * Ensures questions avoid “guess the blank” phrasing and anchor to capabilities, reliability, and evaluation posture.
+   * Ensures prompts avoid “guess the blank” phrasing and anchor to capabilities, reliability, and evaluation posture.
 
 3. **Model Runner Service**
 
-   * Executes **one run per model** (GPT-4o, GPT-5) with:
+   * Executes **one run per model** (GPT-5 primary, GPT-4o comparison) with:
 
      * Masked story excerpt (provider masked globally).
 
      * Six questions (2 per pillar), inserting the ephemeral client mask for the Q1 variants.
 
-   * Uses consistent system prompts and deterministic sampling settings configurable per model.
+   * Applies deterministic sampling, rate-limit aware retries, and supports stub mode for tests.
 
 4. **Evaluation & Reporting Service**
 
@@ -213,11 +213,11 @@ A modular, service-oriented pipeline with four core services:
 | **Pillar Extractor** | LLM call \+ heuristics | Extracts 2–4 concise selling points with short rationales (user-editable). |
 | **Question Generator** | LLM call \+ templates | Produces 2 questions per pillar, conforms to domain-expert tone; validates length/banlist. |
 | **Prompt Assembler** | Library | Builds final prompts per model with system \+ user content, injects ephemeral client mask for Q1s. |
-| **Model Runner** | OpenAI API | Runs GPT-4o and GPT-5 once each; captures raw and parsed answers. |
-| **Evaluator** | Library | NER/regex/LLM-judge hybrid to detect **AI provider mentions** and **reliability signal echoes**. |
+| **Model Runner** | OpenAI API | Runs GPT-5 (primary) and GPT-4o (comparison) once each with retry/backoff, and records token usage. |
+| **Evaluator** | Library | Keyword + optional LLM judge to detect **AI provider mentions** and **reliability signal echoes** across models. |
 | **Storage** | SQLite / Postgres | Stories, pillars, questions, runs, answers, and summaries. |
 | **Admin UI** (optional) | Web | Edit pillars; preview questions; run tests; view JSON results. |
-| **Observability** | Logs/metrics | Latency, token usage, model outcomes, masking coverage %, error traces. |
+| **Observability** | Logs/metrics | Latency, token usage, model outcomes, masking coverage %, error traces, spend estimates. |
 
 ---
 

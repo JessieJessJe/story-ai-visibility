@@ -4,46 +4,51 @@
   "type": "object",
   "required": [
     "story_id",
-    "pillars",
-    "questions",
-    "scores"
+    "selling_points",
+    "scores",
+    "summary"
   ],
   "properties": {
     "story_id": {
       "type": "string",
       "description": "Unique identifier for the narrative or campaign."
     },
-    "pillars": {
+    "selling_points": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["title", "summary", "evidence"],
+        "required": ["pillar", "summary", "questions"],
         "properties": {
-          "title": {"type": "string"},
+          "pillar": {"type": "string"},
           "summary": {"type": "string"},
-          "evidence": {
+          "questions": {
             "type": "array",
-            "items": {"type": "string"}
-          },
-          "priority": {
-            "type": "integer",
-            "minimum": 1,
-            "description": "Relative order where 1 is the highest priority."
-          }
-        }
-      }
-    },
-    "questions": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["prompt", "category"],
-        "properties": {
-          "prompt": {"type": "string"},
-          "category": {"type": "string"},
-          "assumptions": {
-            "type": "array",
-            "items": {"type": "string"}
+            "items": {
+              "type": "object",
+              "required": ["id", "prompt", "category", "responses"],
+              "properties": {
+                "id": {"type": "string"},
+                "prompt": {"type": "string"},
+                "category": {"type": "string"},
+                "kind": {"type": "string"},
+                "assumptions": {
+                  "type": "array",
+                  "items": {"type": "string"}
+                },
+                "responses": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["model", "answer", "ai_provider_inferred"],
+                    "properties": {
+                      "model": {"type": "string"},
+                      "answer": {"type": "string"},
+                      "ai_provider_inferred": {"type": "boolean"}
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -56,11 +61,24 @@
       },
       "additionalProperties": false
     },
+    "summary": {
+      "type": "object",
+      "properties": {
+        "total_questions": {"type": "integer"},
+        "ai_provider_recognized_in": {"type": "integer"}
+      }
+    },
     "metadata": {
       "type": "object",
       "properties": {
         "generated_at": {"type": "string", "format": "date-time"},
-        "model": {"type": "string"}
+        "models_run": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "source_url": {"type": "string", "format": "uri"},
+        "client_name": {"type": "string"},
+        "provider_name": {"type": "string"}
       }
     }
   }

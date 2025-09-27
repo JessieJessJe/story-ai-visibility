@@ -9,8 +9,7 @@ from pathlib import Path
 from src.agents.visibility.evaluator import score_visibility
 from src.agents.visibility.ingestion import load_story_document
 from src.agents.visibility.model_runner import ModelRunner
-from src.agents.visibility.pillars import extract_pillars
-from src.agents.visibility.questions import generate_questions
+from src.agents.visibility.service import VisibilityLLMService
 from src.agents.visibility.storage import write_result
 from src.common.config import load_settings
 from src.common.types import (
@@ -43,8 +42,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--models",
         nargs="+",
-        default=["gpt-4o", "gpt-5"],
-        help="Models to run against the masked story.",
+        default=None,
+        help="Models to run against the masked story. Defaults to primary + comparison models.",
     )
     parser.add_argument(
         "--output",
@@ -66,21 +65,31 @@ def run_cli(args: argparse.Namespace) -> Path:
         provider_name=args.provider_name,
     )
 
+    settings = load_settings()
+    runner = ModelRunner(settings)
+    service = VisibilityLLMService(settings, runner)
+
     document = load_story_document(
         args.input,
         metadata,
         provider_aliases=args.provider_aliases,
     )
 
-    pillars = extract_pillars(document.masked_text)
-    questions = generate_questions(pillars)
+    pillars = service.extract_pillars(document)
+    questions = service.generate_questions(pillars)
 
-    settings = load_settings()
-    runner = ModelRunner(settings)
+    default_models = [settings.model.name, *settings.model.comparison_models]
+    model_list = args.models or default_models
+    # Remove duplicates while preserving order
+    seen: set[str] = set()
+    models: list[str] = []
+    for model_name in model_list:
+        if model_name in seen:
+            continue
+        seen.add(model_name)
+        models.append(model_name)
 
-    answers = []
-    for model_name in args.models:
-        answers.extend(runner.answer_questions(model_name, questions))
+    answers = service.build_answers(models, questions, transcript=document.masked_text)
 
     result = VisibilityResult(
         story_id=metadata.story_id,
@@ -89,7 +98,7 @@ def run_cli(args: argparse.Namespace) -> Path:
         answers=answers,
         scores=VisibilityScorecard(),
         summary=VisibilitySummary(),
-        models_run=list(args.models),
+        models_run=models,
         metadata=metadata,
     )
 

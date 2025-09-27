@@ -18,7 +18,7 @@ def test_load_transcript_returns_clean_string() -> None:
     path = FIXTURES / "bluej_raw.txt"
     content = load_transcript(path)
     assert "\n\n" not in content
-    assert "BlueJ Campus Summit" in content
+    assert "Oscar brings AI to health insurance" in content
 
 
 def test_normalize_story_text_strips_markup() -> None:

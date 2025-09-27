@@ -26,4 +26,9 @@ def test_run_cli_produces_visibility_report() -> None:
         assert payload["story_id"] == "bluej-001"
         assert payload["summary"]["total_questions"] == 6
         assert payload["summary"]["ai_provider_recognized_in"] >= 6
-        assert payload["metadata"]["models_run"] == ["gpt-4o", "gpt-5"]
+        models_run = payload["metadata"]["models_run"]
+        assert "gpt-5" in models_run
+        assert "gpt-4o" in models_run
+        first_question = payload["selling_points"][0]["questions"][0]
+        response_models = {resp["model"] for resp in first_question["responses"]}
+        assert {"gpt-5", "gpt-4o"}.issubset(response_models)

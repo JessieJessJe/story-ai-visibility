@@ -40,6 +40,14 @@ def build_result() -> VisibilityResult:
             ai_provider_inferred=True,
         ),
         QuestionAnswer(
+            question_id="sp1_q1_masked_client",
+            model="gpt-5",
+            prompt=questions[0].prompt,
+            answer="GPT-5 confirms OpenAI enables the rollout.",
+            kind="masked_client",
+            ai_provider_inferred=True,
+        ),
+        QuestionAnswer(
             question_id="sp1_q2_industry_general",
             model="gpt-4o",
             prompt=questions[1].prompt,
@@ -71,5 +79,7 @@ def test_serialize_result_matches_schema_shape() -> None:
     payload = serialize_result(result)
     assert payload["story_id"] == "bluej"
     assert payload["summary"]["total_questions"] == 2
-    assert payload["selling_points"][0]["questions"][0]["ai_provider_inferred"] is True
+    responses = payload["selling_points"][0]["questions"][0]["responses"]
+    assert len(responses) == 2
+    assert responses[0]["ai_provider_inferred"] is True
     assert payload["metadata"]["source_url"] == "https://openai.com/index/blue-j/"

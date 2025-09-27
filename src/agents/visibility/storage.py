@@ -6,7 +6,16 @@ import json
 from pathlib import Path
 from typing import Dict, List
 
-from src.common.types import ClarifyingQuestion, VisibilityResult
+from collections import defaultdict
+
+from src.common.types import ClarifyingQuestion, QuestionAnswer, VisibilityResult
+
+
+def _group_answers(answers: List[QuestionAnswer]) -> Dict[str, List[QuestionAnswer]]:
+    grouped: Dict[str, List[QuestionAnswer]] = defaultdict(list)
+    for answer in answers:
+        grouped[answer.question_id].append(answer)
+    return grouped
 
 
 def _serialize_questions(
@@ -15,22 +24,30 @@ def _serialize_questions(
     result: VisibilityResult,
 ) -> List[Dict[str, object]]:
     question_map = {question.identifier: question for question in questions if question.identifier}
-    answer_map = {answer.question_id: answer for answer in result.answers}
+    grouped_answers = _group_answers(result.answers)
 
     serialized: List[Dict[str, object]] = []
     for suffix in ("q1_masked_client", "q2_industry_general"):
         question_id = f"sp{pillar_index}_{suffix}"
         question = question_map.get(question_id)
-        answer = answer_map.get(question_id)
-        if question is None or answer is None:
+        answers = grouped_answers.get(question_id, [])
+        if question is None or not answers:
             continue
         serialized.append(
             {
                 "id": question_id,
                 "prompt": question.prompt,
-                "answer": answer.answer,
-                "ai_provider_inferred": answer.ai_provider_inferred,
-                "model": answer.model,
+                "category": question.category,
+                "kind": question.kind,
+                "assumptions": question.assumptions,
+                "responses": [
+                    {
+                        "model": answer.model,
+                        "answer": answer.answer,
+                        "ai_provider_inferred": answer.ai_provider_inferred,
+                    }
+                    for answer in answers
+                ],
             }
         )
     return serialized
