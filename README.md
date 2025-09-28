@@ -13,13 +13,13 @@ Generate brand-visibility briefs by masking provider names and comparing how mul
 
 Summary created by Codex.
 
-## Architecture Flow
-
-![Architecture flow showing current pipeline and future expansion, including async ingestion, GPT-5/GPT-4 comparisons, and planned multi-model support](flow_diagram.png)
-
-## Business Context
+## Problem ⇄ Solution
 
 ![Business context diagram illustrating judges, agency analysts, and brand stakeholders using the visibility workflow](https://raw.githubusercontent.com/JessieJessJe/story-ai-visibility/main/usecase_diagram.png)
+
+## Technical Architecture
+
+![Architecture flow showing current pipeline and future expansion, including async ingestion, GPT-5/GPT-4 comparisons, and planned multi-model support](flow_diagram.png)
 
 ## Requirements
 
