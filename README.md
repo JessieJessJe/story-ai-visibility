@@ -137,6 +137,29 @@ curl -X POST http://localhost:8000/analyze \
   }'
 ```
 
+### Deployment (Railway)
+
+1. In Railway, select **Deploy from Dockerfile** for this repo (no manual image name required).
+2. Set runtime variables (`MODEL_MODE`, `OPENAI_API_KEY`, `OPENAI_PROVIDER_NAME`, `OPENAI_PROVIDER_ALIASES`, `ALLOWED_ORIGINS`, etc.).
+3. After deploy, the API is reachable at `https://<your-app>.up.railway.app`.
+
+> ⚠️ Treat the URL as private unless you add auth or rate limiting. Anyone hitting `/analyze` will consume your OpenAI quota.
+
+Smoke test the Railway instance:
+
+```bash
+curl -X GET https://<your-app>.up.railway.app/health
+
+curl -X POST https://<your-app>.up.railway.app/analyze \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "OpenAI partnered with Oscar Health to modernize medical records.",
+    "mode": "stub"
+  }'
+```
+
+Replace `<your-app>` with your Railway subdomain (e.g. `story-ai-visibility-production`).
+
 ## Testing & QA
 
 - `python3 -m pytest` – unit tests covering masking, extraction heuristics, model runner, evaluator, storage, CLI.
