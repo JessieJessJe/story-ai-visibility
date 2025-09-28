@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass, field
 
@@ -35,11 +36,31 @@ class StorageSettings:
 
 
 @dataclass
+class ProviderSettings:
+    """Default provider metadata used throughout the pipeline."""
+
+    name: str = "OpenAI"
+    aliases: list[str] = field(
+        default_factory=lambda: [
+            "OpenAI",
+            "Open AI",
+            "OpenAI, Inc.",
+            "ChatGPT",
+            "GPT-4o",
+            "GPT-5",
+            "Sora",
+            "DALL·E",
+        ]
+    )
+
+
+@dataclass
 class Settings:
     """Aggregated application configuration."""
 
     model: ModelSettings
     storage: StorageSettings
+    provider: ProviderSettings
 
 
 
@@ -59,6 +80,21 @@ def _sanitize_optional(value: str | None) -> str | None:
     value = value.strip()
     return value or None
 
+
+def _load_aliases(raw: str | None) -> list[str]:
+    if not raw:
+        return ProviderSettings().aliases
+    raw = raw.strip()
+    if not raw:
+        return ProviderSettings().aliases
+    try:
+        loaded = json.loads(raw)
+        if isinstance(loaded, list):
+            return [str(item).strip() for item in loaded if str(item).strip()]
+    except json.JSONDecodeError:
+        pass
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
 def load_settings() -> Settings:
     """Load settings from environment variables with safe defaults."""
 
@@ -75,8 +111,8 @@ def load_settings() -> Settings:
         max_output_tokens=int(os.getenv("MODEL_MAX_OUTPUT_TOKENS", "4096")),
         max_retries=int(os.getenv("MODEL_MAX_RETRIES", "2")),
         backoff_seconds=float(os.getenv("MODEL_BACKOFF_SECONDS", "2.0")),
-        call_budget=_safe_int(os.getenv("MODEL_CALL_BUDGET", "16")),
-        timeout_seconds=float(os.getenv("MODEL_TIMEOUT_SECONDS", "45")),
+        call_budget=_safe_int(os.getenv("MODEL_CALL_BUDGET", "20")),
+        timeout_seconds=float(os.getenv("MODEL_TIMEOUT_SECONDS", "60")),
         api_key=os.getenv("OPENAI_API_KEY"),
         organization=os.getenv("OPENAI_ORG", None),
         reasoning_effort=_sanitize_optional(os.getenv("MODEL_REASONING_EFFORT")),
@@ -86,7 +122,17 @@ def load_settings() -> Settings:
         bucket=os.getenv("STORAGE_BUCKET", "local-cache"),
         base_path=os.getenv("STORAGE_BASE_PATH", "visibility-results"),
     )
-    return Settings(model=model, storage=storage)
+    provider = ProviderSettings(
+        name=os.getenv("OPENAI_PROVIDER_NAME", "OpenAI"),
+        aliases=_load_aliases(os.getenv("OPENAI_PROVIDER_ALIASES")),
+    )
+    return Settings(model=model, storage=storage, provider=provider)
 
 
-__all__ = ["ModelSettings", "StorageSettings", "Settings", "load_settings"]
+__all__ = [
+    "ModelSettings",
+    "StorageSettings",
+    "ProviderSettings",
+    "Settings",
+    "load_settings",
+]

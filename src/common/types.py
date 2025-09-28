@@ -89,6 +89,7 @@ class VisibilityResult:
     generated_at: datetime = field(default_factory=datetime.utcnow)
     models_run: List[str] = field(default_factory=list)
     metadata: StoryMetadata | None = None
+    mode: str | None = None
 
 
 __all__ = [

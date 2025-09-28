@@ -6,44 +6,38 @@ import argparse
 import json
 from pathlib import Path
 
-from src.agents.visibility.evaluator import score_visibility
-from src.agents.visibility.ingestion import load_story_document
-from src.agents.visibility.model_runner import ModelRunner
-from src.agents.visibility.service import VisibilityLLMService
-from src.agents.visibility.storage import write_result
 from src.common.config import load_settings
-from src.common.types import (
-    StoryMetadata,
-    VisibilityResult,
-    VisibilityScorecard,
-    VisibilitySummary,
-)
+from src.pipeline import run_pipeline
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Generate a visibility report from a transcript.")
     parser.add_argument("input", type=Path, help="Path to the transcript to ingest.")
-    parser.add_argument("--story-id", dest="story_id", default="sample-story", help="Identifier for the story or campaign.")
+    parser.add_argument("--story-id", dest="story_id", help="Identifier for the story or campaign.")
     parser.add_argument("--source-url", dest="source_url", help="Optional source URL for the story.")
     parser.add_argument("--client-name", dest="client_name", help="Client name referenced in the story.")
     parser.add_argument(
         "--provider-name",
         dest="provider_name",
-        required=True,
-        help="Name of the AI provider that should be masked and evaluated.",
+        help="Name of the AI provider that should be masked and evaluated (defaults from env).",
     )
     parser.add_argument(
         "--provider-alias",
         dest="provider_aliases",
         action="append",
-        default=[],
+        default=None,
         help="Additional aliases for the provider (use multiple times).",
+    )
+    parser.add_argument(
+        "--mode",
+        choices=["stub", "live"],
+        help="Force stub or live execution (defaults from env).",
     )
     parser.add_argument(
         "--models",
         nargs="+",
         default=None,
-        help="Models to run against the masked story. Defaults to primary + comparison models.",
+        help="Override model list for question answering (optional).",
     )
     parser.add_argument(
         "--output",
@@ -58,55 +52,25 @@ def build_parser() -> argparse.ArgumentParser:
 def run_cli(args: argparse.Namespace) -> Path:
     """Execute the pipeline and persist a visibility result."""
 
-    metadata = StoryMetadata(
-        story_id=args.story_id,
-        source_url=args.source_url,
-        client_name=args.client_name,
-        provider_name=args.provider_name,
-    )
-
     settings = load_settings()
-    runner = ModelRunner(settings)
-    service = VisibilityLLMService(settings, runner)
+    provider_name = args.provider_name or settings.provider.name
+    provider_aliases = args.provider_aliases or settings.provider.aliases
 
-    document = load_story_document(
-        args.input,
-        metadata,
-        provider_aliases=args.provider_aliases,
+    text = args.input.read_text(encoding="utf-8")
+    result = run_pipeline(
+        text=text,
+        provider_name=provider_name,
+        provider_aliases=provider_aliases,
+        mode=args.mode,
+        story_id=args.story_id,
+        client_name=args.client_name,
+        source_url=args.source_url,
+        models_override=args.models,
     )
 
-    pillars = service.extract_pillars(document)
-    questions = service.generate_questions(pillars)
-
-    default_models = [settings.model.name, *settings.model.comparison_models]
-    model_list = args.models or default_models
-    # Remove duplicates while preserving order
-    seen: set[str] = set()
-    models: list[str] = []
-    for model_name in model_list:
-        if model_name in seen:
-            continue
-        seen.add(model_name)
-        models.append(model_name)
-
-    answers = service.build_answers(models, questions, transcript=document.masked_text)
-
-    result = VisibilityResult(
-        story_id=metadata.story_id,
-        pillars=pillars,
-        questions=questions,
-        answers=answers,
-        scores=VisibilityScorecard(),
-        summary=VisibilitySummary(),
-        models_run=models,
-        metadata=metadata,
-    )
-
-    provider_aliases = [alias for alias in [metadata.provider_name, *(args.provider_aliases or [])] if alias]
-    score_visibility(result, provider_aliases)
-
-    output_path = write_result(result, args.output)
-    return output_path
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(result, indent=2), encoding="utf-8")
+    return args.output
 
 
 def main() -> None:

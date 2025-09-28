@@ -82,6 +82,7 @@ def serialize_result(result: VisibilityResult) -> dict:
     metadata: Dict[str, object] = {
         "generated_at": result.generated_at.isoformat(),
         "models_run": result.models_run,
+        "mode": result.mode,
     }
     if result.metadata:
         metadata.update(

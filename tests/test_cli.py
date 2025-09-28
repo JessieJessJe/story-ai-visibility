@@ -19,6 +19,7 @@ def test_run_cli_produces_visibility_report() -> None:
             provider_name="OpenAI",
             provider_aliases=["OpenAI"],
             models=["gpt-4o", "gpt-5"],
+            mode=None,
             output=output_path,
         )
         result_path = run_cli(args)

@@ -104,6 +104,39 @@ Live runs write JSON artifacts under `artifacts/`. Example (`artifacts/oscar_liv
 - **Logging**: If GPT-5 hits the cap, the CLI prints `Warning: <model> response incomplete -> {...}` with the reason. Adjust tokens or simplify prompts and rerun.
 - **Timeouts**: CLI may time out at the shell level, but artifacts are still written once OpenAI returns. Check `artifacts/*.json` even if you see a timeout message.
 
+## FastAPI Service
+
+Run the backend wrapper for the React UI:
+
+```bash
+uvicorn src.api.main:app --host 0.0.0.0 --port 8000
+```
+
+- `POST /analyze` → accepts `{ "text": "...", "provider_name"?, "provider_aliases"?, "mode"? }` and returns the JSON contract used above.
+- `GET /health` → `{ "ok": true }` for smoke checks.
+- Default CORS: `http://localhost:3000`. Override via `ALLOWED_ORIGINS` (comma-delimited).
+- Requests exceeding 180 s respond with HTTP 504 and `{ "code": "TIMEOUT", "mode": "..." }`.
+
+### Docker / Railway
+
+```bash
+docker build -t visibility-api .
+docker run -p 8080:8080 visibility-api
+```
+
+Deploy the same image to Railway (listens on `$PORT`, default 8080).
+
+### API Smoke Test
+
+```bash
+curl -X POST http://localhost:8000/analyze \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "OpenAI partnered with Oscar Health to modernize medical records.",
+    "mode": "stub"
+  }'
+```
+
 ## Testing & QA
 
 - `python3 -m pytest` – unit tests covering masking, extraction heuristics, model runner, evaluator, storage, CLI.
@@ -124,6 +157,9 @@ Key `.env` variables (see `.env.example`):
 | `MODEL_CALL_BUDGET` | Max completions per run | `20` |
 | `MODEL_TIMEOUT_SECONDS` | Per-call timeout | `60` |
 | `OPENAI_API_KEY` | Required in live mode | *(empty)* |
+| `OPENAI_PROVIDER_NAME` | Default provider label | `OpenAI` |
+| `OPENAI_PROVIDER_ALIASES` | JSON list of masked aliases | `["OpenAI", "Open AI", ...]` |
+| `ALLOWED_ORIGINS` | CORS whitelist for API | `http://localhost:3000` |
 
 See `docs/PRD.md` for deeper design notes and future roadmap (REST API, richer evaluator signals, telemetry).
 
