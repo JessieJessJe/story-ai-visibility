@@ -17,6 +17,10 @@ Summary created by Codex.
 
 ![Architecture flow showing current pipeline and future expansion, including async ingestion, GPT-5/GPT-4 comparisons, and planned multi-model support](flow_diagram.png)
 
+## Business Context
+
+![Business context diagram illustrating judges, agency analysts, and brand stakeholders using the visibility workflow](https://raw.githubusercontent.com/JessieJessJe/story-ai-visibility/main/usecase_diagram.png)
+
 ## Requirements
 
 - Python 3.11+
