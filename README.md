@@ -182,7 +182,7 @@ Key `.env` variables (see `.env.example`):
 | `OPENAI_API_KEY` | Required in live mode | *(empty)* |
 | `OPENAI_PROVIDER_NAME` | Default provider label | `OpenAI` |
 | `OPENAI_PROVIDER_ALIASES` | JSON list of masked aliases | `["OpenAI", "Open AI", ...]` |
-| `ALLOWED_ORIGINS` | CORS whitelist for API | `http://localhost:3000` |
+| `ALLOWED_ORIGINS` | CORS whitelist for API | `http://localhost:3000,https://story-ai-visibility-fe.vercel.app` |
 
 See `docs/PRD.md` for deeper design notes and future roadmap (REST API, richer evaluator signals, telemetry).
 

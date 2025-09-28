@@ -14,7 +14,10 @@ from src.common.config import load_settings
 from src.pipeline import run_pipeline
 
 DEFAULT_TIMEOUT_SECONDS = 180
-DEFAULT_ORIGINS = ["http://localhost:3000"]
+DEFAULT_ORIGINS = [
+    "http://localhost:3000",
+    "https://story-ai-visibility-fe.vercel.app",
+]
 
 app = FastAPI(title="Brand Visibility API")
 
