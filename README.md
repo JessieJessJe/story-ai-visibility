@@ -2,6 +2,21 @@
 
 Generate brand-visibility briefs by masking provider names and comparing how multiple LLMs (GPT-5 primary, GPT-4o comparison) respond. The pipeline ingests a transcript, extracts selling points, asks domain-expert questions, and highlights where models still infer the masked provider.
 
+## Judges, here’s the TL;DR
+
+- Live deployment: `https://story-ai-visibility-fe.vercel.app`
+- **Codex in Development**: `AGENTS.md` defines agent roles, while `docs/PRD.md` and `docs/PRD_v2.md` specify the delivery roadmap; the Codex CLI tool enforces those specs by running pytest, linting prompts, and shipping atomic patches so every change is reviewable.
+- **GPT-5 in Project**: `src/cli.py` drives GPT-5 through `assets/visibility/system.prompt.md`, `assets/visibility/extract_pillars.prompt.md`, and `assets/visibility/generate_questions.prompt.md` to mask providers, generate probes, and score inference; GPT-4o cross-checks outputs, and stub fixtures keep evaluations reproducible.
+- **Live Demo**: TBD — planned demo highlights side-by-side GPT-5 vs GPT-4o inference detection, latency, and masking compliance once validation logging is finalized.
+- **Technicality**: 1) Algorithm — deterministic ingestion → provider masking → pillar extraction → question generation → inference scoring with confidence flags; 2) Tech stack — Python 3.11+, FastAPI, modular `src/common` utilities, pytest coverage targets ≥85%, Codex-driven scripts under `scripts/`.
+- **Frontend Notes**: React client (`https://github.com/JessieJessJe/story-ai-visibility-fe`) hits the FastAPI backend and surfaces inference scores; production build runs at `https://story-ai-visibility-fe.vercel.app`.
+
+Summary created by Codex.
+
+## Architecture Flow
+
+![Architecture flow showing current pipeline and future expansion, including async ingestion, GPT-5/GPT-4 comparisons, and planned multi-model support](flow_diagram.png)
+
 ## Requirements
 
 - Python 3.11+
